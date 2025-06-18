@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Swaap Goldsky Query</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+    }
+    .field-line {
+      display: flex;
+      align-items: center;
+      margin: 6px 0;
+    }
+    .field-label {
+      min-width: 200px;
+      font-weight: bold;
+    }
+    .copy-box {
+      background-color: #f4f4f4;
+      border: 1px solid #ccc;
+      padding: 4px 8px;
+      font-family: monospace;
+      font-size: 0.9rem;
+      margin-right: 6px;
+      white-space: nowrap;
+      overflow-x: auto;
+    }
+    .copy-btn {
+      font-size: 0.8rem;
+      padding: 2px 6px;
+      cursor: pointer;
+    }
+    .position {
+      border-top: 1px solid #ccc;
+      padding-top: 10px;
+      margin-top: 25px;
+    }
+    .position-title {
+      font-size: 1.5rem;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Exit payload generator for Swaap v2</h1>
+
+  <label for="network">Select Network:</label>
+  <select id="network">
+    <option value="" disabled selected>Select a network</option>
+    <option value="arbitrum">arbitrum</option>
+    <option value="base">base</option>
+    <option value="ethereum">ethereum</option>
+    <option value="polygon">polygon</option>
+  </select>
+
+  <br><br>
+
+  <label for="userAddress">User Address:</label>
+  <input type="text" id="userAddress" placeholder="0x...">
+
+  <br><br>
+
+  <button onclick="generateQuery()">Generate</button>
+
+  <br><br>
+
+  <div id="result"></div>
+
+  <script>
+    function createField(label, value) {
+      const container = document.createElement("div");
+      container.className = "field-line";
+
+      const labelSpan = document.createElement("span");
+      labelSpan.className = "field-label";
+      labelSpan.textContent = label;
+
+      const valueBox = document.createElement("code");
+      valueBox.className = "copy-box";
+      valueBox.textContent = value;
+
+      const btn = document.createElement("button");
+      btn.className = "copy-btn";
+      btn.textContent = "Copy";
+      btn.onclick = () => {
+        navigator.clipboard.writeText(value);
+        btn.textContent = "Copied!";
+        setTimeout(() => btn.textContent = "Copy", 1500);
+      };
+
+      container.appendChild(labelSpan);
+      container.appendChild(valueBox);
+      container.appendChild(btn);
+
+      return container;
+    }
+
+    async function generateQuery() {
+      const network = document.getElementById("network").value;
+
+      if (!network) {
+        alert("Please select a network before continuing.");
+        return;
+      }
+
+      const userAddress = document.getElementById("userAddress").value.toLowerCase();
+
+      if (userAddress == "") {
+        alert("Please add a wallet address before continuing.");
+        return;
+      }
+
+      if (userAddress.length != 42) {
+        alert("Unexpected address length. Correct format: 0xD315a...");
+        return;
+      }
+
+      const resultDisplay = document.getElementById("result");
+      resultDisplay.innerHTML = "";
+
+      const urls = {
+        arbitrum: "https://api.goldsky.com/api/public/project_clws2t7g7ae9c01xsbnu80a51/subgraphs/swaapv2-arbitrum/1.0.0/gn",
+        base: "https://api.goldsky.com/api/public/project_clws2t7g7ae9c01xsbnu80a51/subgraphs/swaapv2-base/1.0.0/gn",
+        ethereum: "https://api.goldsky.com/api/public/project_clws2t7g7ae9c01xsbnu80a51/subgraphs/swaapv2-ethereum/1.0.0/gn",
+        polygon: "https://api.goldsky.com/api/public/project_clws2t7g7ae9c01xsbnu80a51/subgraphs/swaapv2-polygon/1.0.0/gn",
+      };
+
+      const explorerLinks = {
+        arbitrum: "https://arbiscan.io/address/0xd315a9c38ec871068fec378e4ce78af528c76293#writeContract",
+        base: "https://basescan.org/address/0x03C01Acae3D0173a93d819efDc832C7C4F153B06#writeContract",
+        ethereum: "https://etherscan.io/address/0xd315a9c38ec871068fec378e4ce78af528c76293#writeContract",
+        polygon: "https://polygonscan.com/address/0xd315a9c38ec871068fec378e4ce78af528c76293#writeContract",
+      };
+
+      const query = {
+        query: `{
+          poolShares(where: {userAddress: "${userAddress}"}) {
+            poolId {
+              id
+              tokens {
+                address
+              }
+            }
+            balance
+          }
+        }`
+      };
+
+      const response = await fetch(urls[network], {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(query)
+      });
+
+      const data = await response.json();
+      const shares = data.data?.poolShares || [];
+
+      if (shares.length === 0) {
+        resultDisplay.textContent = "No positions found";
+        return;
+      }
+
+      shares.forEach((share, index) => {
+        const balance = share.balance;
+        const [whole, fractional = ""] = balance.split(".");
+        const fractionalPadded = fractional.padEnd(18, "0").slice(0, 18);
+        const balanceIn18Decimals = whole + fractionalPadded;
+        const hexBalance = BigInt(balanceIn18Decimals).toString(16).padStart(64, '0');
+        const hexZero = BigInt(0).toString(16).padStart(64, '0');
+        const encodedUserData = `"0x${hexZero}${hexBalance}"`;
+
+        const assetsArray = share.poolId.tokens.map(t => t.address);
+        const assetsFormatted = `["${assetsArray.join(`","`)}"]`;
+        const minAmountsOutFormatted = `[0,0]`;
+
+        const section = document.createElement("div");
+        section.className = "position";
+
+        const title = document.createElement("div");
+        title.className = "position-title";
+        title.textContent = `Position ${index + 1}`;
+        section.appendChild(title);
+
+        section.appendChild(createField("poolId (bytes32):", share.poolId.id));
+        section.appendChild(createField("sender (address):", userAddress));
+        section.appendChild(createField("recipient (address):", userAddress));
+        section.appendChild(createField("assets (address[]):", assetsFormatted));
+        section.appendChild(createField("minAmountsOut (uint256[]):", minAmountsOutFormatted));
+        section.appendChild(createField("userData (bytes):", encodedUserData));
+        section.appendChild(createField("toInternalBalance (bool):", "false"));
+
+        resultDisplay.appendChild(section);
+
+        const explorerLink = explorerLinks[network];
+        const footer = document.createElement("div");
+        footer.innerHTML = `Submit the data <a href="${explorerLink}" target="_blank">here</a>`;
+        footer.style.marginTop = "20px";
+        resultDisplay.appendChild(footer);
+    });
+
+    }
+  </script>
+</body>
+</html>
