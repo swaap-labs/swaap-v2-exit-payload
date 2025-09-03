@@ -145,7 +145,7 @@
 
       const query = {
         query: `{
-          poolShares(where: {userAddress: "${userAddress}"}) {
+          poolShares(where: {userAddress: "${userAddress}"  balance_not: "0"}) {
             poolId {
               id
               tokens {
