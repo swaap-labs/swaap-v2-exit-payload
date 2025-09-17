@@ -8,7 +8,7 @@ Once generated click on "here" to continue with the next steps.
 ![payload generator img](payload_generator.png)
 
 ## 2- Connect your wallet
-Connect your web3 wallet and unroll "exitPool" as shown below. For mode users you can skip this step.
+Connect your web3 wallet and unroll "exitPool" as shown below.
 
 ![connect wallet img](connect_wallet.png)
 
